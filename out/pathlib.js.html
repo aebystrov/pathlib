@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: pathlib.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: pathlib.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>`use strict`;
+
+/**
+ * @module pathlib
+ * @param {JSON} spec - Спецификация узлов и атрибутов.
+ * @returns {Factory} Возвращает функцию фабрику для создания объектов pathInArray.
+ */
+module.exports = function (spec) {
+
+  return new Factory(spec);
+};
+
+/**
+ * Фабрика объектов
+ * @param {Object} spec - Спецификация пути. Содержимое файла spec.js
+ * @returns {Function}
+ * @constructor
+ */
+function Factory(spec) {
+
+  /**
+   *
+   * @method sValid
+   * @param {String|Array} path - Путь
+   * @returns {Boolean} Возвращает истину если путь входит в спецификацию
+   */
+  let factory = function (path) {
+
+    return Object.create(pathObject, {
+      path: {
+        writable: false,
+        configurable: true,
+        value: path },
+      spec: {
+        writable: false,
+        configurable: true,
+        value: spec }
+    });
+  };
+
+  /**
+   * Проверяет путь по спецификации
+   * @param {String|Array} pathway принимает путь в виде строки или массива
+   * @returns {Boolean} Возвращает истину если путь
+   * является корректным по спецификации spec.json
+   */
+  factory.isValid = function (pathway) {
+    return pathway in spec;
+  };
+
+  return factory;
+}
+
+/**
+ * Объект пути.
+ * @namespace
+ */
+let pathObject = {
+
+  /**
+   * @property {Array} pathInArray - Седержит массив узлов в виде объектов с
+   * именами и индексами множественности. Если множественность в спецификации
+   * не определена, то значение null.
+   */
+  get pathInArray() {
+  let value = "";
+
+  //Проверка на тип пришедшего параметра
+  if (Array.isArray(this.path)) {
+    value = this.path;
+  } else {
+    value = [];
+    let arr = this.path.split(".");
+
+    // Запишет каждый узел в массив
+    for (let i = 0; i &lt; arr.length; i++) {
+      let index = [];
+      let name = [];
+
+      // Парсит строку, отделяя имя узла и индекс по шаблону
+      if (arr[i].match(/\[\d+\]/)) {
+        index = arr[i].match(/\d+/);
+        index = index[0];
+        name = arr[i].replace(arr[i].match(/\[\d+\]/), "");
+      } else {
+        name = arr[i];
+        index = null;
+      }
+
+      value.push({name: name, index: index});
+    }
+  }
+
+  // Инициализирует свойство объекта после обращения к нему
+  Object.defineProperty(this, "pathInArray", {
+    value: value,
+    writable: true, configurable: false
+  });
+
+  return value;
+},
+
+  /**
+   * @property {Number} length - Сожержит количество элементов пути.
+   */
+  get length() {
+  let value = this.pathInArray.length;
+
+  // Инициализирует свойство объекта после обращения к нему
+  Object.defineProperty(this, "length", {
+    value: value,
+    writable: true, configurable: false
+  });
+
+  return value;
+},
+
+  /**
+   * Строковое представление объекта pathInArray
+   * @returns {String} Возвращает путь в виде строки
+   */
+  toString: function () {
+    let arr = this.pathInArray.map(function (obj) {
+
+      return obj.name + (obj.index ? `[${obj.index}]` : "");
+    });
+
+    return arr.join(".");
+  },
+
+  /**
+   * Представление в виде массива.
+   * Выводит свойство pathInArray.
+   * @returns {Array}
+   */
+  toArray: function () {
+
+    return this.pathInArray;
+  },
+
+  /**
+   * Заполняет множественность в пути по данным спецификации.
+   * Не заполняет множественность если она уже указана в пути
+   * @param {String} value="0" Указывает символ заполнитель
+   * @returns {String} Возвращает строковое представление объекта
+   */
+  fillMultiple: function (value = "0") {
+    let arr = this.getMultiple();
+
+    for (let i = 0; i &lt; arr.length; i++) {
+
+      if (!arr[i][1]) {
+        this.pathInArray[arr[i][0]].index = value;
+      }
+    }
+
+    return this.toString();
+  },
+
+  /**
+   * Удаляет множественность из пути по данным спецификации
+   * @param {Number|null} index|null Указывает из какого множественного элемента следует
+   * удалить множественность
+   * @returns {String} Возвращает строковое представление объекта
+   */
+  dropMultiple: function (index = null) {
+    let arr = this.getMultiple();
+
+    if (index === null) {
+      for (let i = 0; i &lt; arr.length; i++) {
+        this.pathInArray[arr[i][0]].index = null;
+
+      }
+    } else if (index >= 0) {
+      this.pathInArray[arr[index][0]].index = null;
+
+    } else if (index &lt; 0) {
+      for (let i = arr.length; i > 0; i--) {
+        this.pathInArray[arr[arr.length + index][0]].index = null;
+      }
+    }
+
+    return this.toString();
+  },
+
+  /**
+   * Возвращает массив индексов множественных узлов объекта и индексов узлов
+   * @returns {Array}
+   */
+  getMultiple: function () {
+    let arrNodes = [];
+    let arr = this.pathInArray;
+
+    /**
+     * Ищет совпадения имён объекта и спецификации.
+     */
+    for (let i = 0; i &lt; arr.length; i++) {
+      for (let j = 0; j &lt; Object.getOwnPropertyNames(this.spec).length; j++) {
+
+        let key = Object.getOwnPropertyNames(this.spec)[j];
+        let a = key.split(".").pop();
+        let b = arr[i].name;
+
+        if (a === b &amp;&amp; this.spec[key].multiple) {
+          arrNodes.push([i, arr[i].index]);
+        }
+      }
+    }
+
+    return arrNodes;
+  },
+
+  /**
+   * Выполняет обход по пути от корневого элемента
+   * @param {Function} callback выполняется над каждым узлом или атрибутом
+   * Если функция callback возвращает false итерации останавливаются
+   * @returns {Number} Возвращает номер узла в объекте
+   */
+  each: function (callback) {
+    let count = 0;
+
+    for (let i = 0; i &lt; this.pathInArray.length; i++) {
+      count += 1;
+      if (callback({name: this.pathInArray[i].name}) === false) break;
+    }
+
+    return count;
+  },
+
+  /**
+   * Выводит узлы пути с их индексами в столбик
+   * @returns {String}
+   */
+  inColumn: function () {
+    const arr = this.pathInArray;
+    let str = "";
+
+    for (let value of arr) {
+      str += !value.index ?  `${value.name}\n` : `${value.name}[${value.index}]\n`;
+    }
+
+    return str;
+  }
+};
+
+
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-pathlib.html">pathlib</a></li></ul><h3>Classes</h3><ul><li><a href="module-pathlib-Factory.html">Factory</a></li></ul><h3>Namespaces</h3><ul><li><a href="module-pathlib-pathObject.html">pathObject</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.5.5</a> on Sat Dec 16 2017 21:10:34 GMT+0500 (RTZ 4 (зима))
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
